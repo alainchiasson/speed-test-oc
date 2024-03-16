@@ -1,0 +1,27 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: speed-test
+  labels:
+    app: speed-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: speed-test
+  template:
+    metadata:
+      labels:
+        app: speed-test
+    spec:
+      securityContext:
+        runAsUser: 101
+      containers:
+        - name: openspeedtest
+          image:  openspeedtest/latest
+          imagePullPolicy: Always
+          command: ["nginx"]
+          args: ["-g","daemon off;"]
+          ports:
+          - containerPort: 3000
+

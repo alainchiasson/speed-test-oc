@@ -1,0 +1,12 @@
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: home
+  labels:
+    app: speed-test
+spec:
+  to:
+    kind: Service
+    name: speed-test
+  port:
+    targetPort: 3000

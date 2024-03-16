@@ -1,0 +1,14 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: speed-test
+  labels:
+    app: speed-test
+spec:
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+  selector:
+    app: speed-test
+  type: ClusterIP
