@@ -1,48 +1,22 @@
-# Deploying microservices in Openshift
+# Deploying Local Speedtest in Openshift
 
-This project contains reworked voting application from [Docker Official Samples](https://github.com/dockersamples/example-speed-test), to be able to deploy them easily in Openshift.
+Setting up a home lab with OpenShift to learn a little more about how things work. I wanted to see how to deploy something simple. I figured a speedtest server inside my network would be a good refrence, as well as provide something to test my local wifi speeds.
 
-## Application architecture
+![speedtest screenshot](image/screen-shot.png)
 
-![architecture](docs/img/architecture.png)
+## Openspeed test
 
----
+Openspeed test is described here : https://openspeedtest.com/ and I am using the latest image, openspeedtest/latest:latest. There is a lot that can be done with this server in selfhosted mode - https://openspeedtest.com/selfhosted-speedtest - I have not tested all functionality. If you find anything, please let me know.
 
-## Requirements
+## Openshift Configuration
 
-- An Openshift cluster up and running
-- [oc CLI](https://medium.com/r/?url=https%3A%2F%2Fmirror.openshift.com%2Fpub%2Fopenshift-v4%2Fclients%2Foc%2Flatest%2F)
-- [git](https://medium.com/r/?url=https%3A%2F%2Fgit-scm.com%2Fdownloads)
+Since this is a static image, this is going to be deployed as simple as possible. We will create the incoming route, define the service, and then define the actual deployment. 
 
->I will use CodeReady Containers (crc) for this example, which is a minimal OpenShift 4 cluster able to run on your local computer. 
-This could be an Openshift (version 3 or 4), OKD (version 3 or 4) or a Minishift.
-At the moment, I use crc 4.6.15 and oc CLI 4.6.16.
-Using git repositories allows us to keep a track of what has been done, to version all YAML files, as we can do for source code.
-Using and understanding the oc CLI will make it possible to automate the creation and deployment of applications.
+While the infrastructure and deploymnet can be held in a single file, separating the "infrastructure" from the "runtime" allows us more flexibility later, as well as create a demarcation point.
 
----
+### Creating the project 
 
-## Deploy speed-test
-
-Before starting, if you don't know the basics of Openshift or Kubernetes, let me redirect you to the official documentation of the objects that will be used, stored and versionned:
-- [Pod](https://docs.openshift.com/container-platform/4.6/rest_api/workloads_apis/pod-core-v1.html)
-- [DeploymentConfig](https://docs.openshift.com/container-platform/4.6/rest_api/workloads_apis/deploymentconfig-apps-openshift-io-v1.html)
-- [Service](https://docs.openshift.com/container-platform/4.6/rest_api/network_apis/service-core-v1.html)
-- [Route](https://docs.openshift.com/container-platform/4.6/rest_api/network_apis/route-route-openshift-io-v1.html)
-- [ImageStream](https://docs.openshift.com/container-platform/4.6/rest_api/image_apis/imagestream-image-openshift-io-v1.html)
-- [BuildConfig](https://docs.openshift.com/container-platform/4.6/rest_api/workloads_apis/buildconfig-build-openshift-io-v1.html)
-
-The last things you should know:
-- Deployments may take a few minutes, the cluster needs to pull images, to build images from Dockerfile or from Source to Image.
-- When your deployments are performed, you can access the result and vote application through the Openshift routes and you should see something like this:
-![app](docs/img/vote-result.png)
-
----
-
-## Getting started
-
-Now, let's create an Openshift project and deploy redis and postgreSQL databases.
-Connect to your Openshift cluster by using the command `oc login <SERVER_URL>` with your credentials and replace <SERVER_URL> before run any command with the oc client.
+We first create a project to provide us with some sepration.
 
 ```bash
 # Create speed-test project
@@ -53,80 +27,85 @@ $ oc new-project speed-test
 $ oc adm policy add-scc-to-user nonroot -z default -n speed-test
 
 ```
+### Create the infrastructure
 
-
-Initialize speed-test project with common objects for the three different ways deployment modes: 
-```bash
-# Deploying services, routes and imagestreams
-$ oc apply -f . -n speed-test
-```
-
-What we will deploy:
-![deployments](docs/img/deployments.png)
-
-### 1. With container images
-
-First, we will deploy this with container images. These images can be built and stored in any registry.
-
-If you want to change images, modify **image attribute** in YAML files located in openshift-specifications/with-images directory.
-For example, `image: my-registry:443/my-image:1.0`.
-
-This method is used when you have already a toolchain that build images for you and you don't want to change this operation. 
-
->If you want to build images and push them in a registry, you can do that as well. If you want to use images that I pushed for this article, you do not have to do anything.
-
-Let's deploy our application:
-```bash
-# Deploying DeploymentConfigs with container
-$ oc apply -f openshift-specifications/with-images -n speed-test
-```
-
-When the application is up and running, you can access the 2 microservices (vote and result) through the routes created for this purpose.
-In my case, with application running on crc, I can access to vote app at http://vote-speed-test..apps-crc.testing/ and result app at http://result-speed-test..apps-crc.testing/. Take a look at the routes that Openshift has automatically created for you based on the router configuration.
-
-### 2. With Dockerfile
-
-In a second step, we are going to deploy the same application but with some changes: use of Dockerfile in your Git repository. It's Openshift that will take care of building our images. 
-Let's update Openshift objects to try out this method and trigger container image building.
-This method allows you to update your Dockerfile and source code at the same time in your SCM, you keep control over everything and it's all versioned.
+Initialize speed-test project with the openshift routing and the service endpoint.
 
 ```bash
-# Deploying new DeploymentConfigs and BuildConfigs using dockerfile
-$ oc apply -f openshift-specifications/with-dockerfile -n speed-test
+# Deploying service and route
+$ oc apply -f openshift-infra -n speed-test
 
-# Run images build, DeploymentConfigs will be triggered when the builds are completed.
-$ oc start-build result
-$ oc start-build vote
-$ oc start-build worker
 ```
 
-Once the builds are completed, you can check vote and result application are running.
+### Deploy the image containers.
 
-### 3. With Source to Image (S2I)
-
-Now, what if you don't want to worry about a Dockerfile and want to stay focused on your source code? This is the last method we are going to implement.
-Let's update Openshift objects again and trigger new builds.
+Afterwards we deploy the containers as a deployment, using an already built image.
 
 ```bash
-# Deploying new DeploymentConfigs and new BuildConfigs using s2i
-$ oc apply -f openshift-specifications/with-s2i -n speed-test
-
-# Run images build, DeploymentConfigs will be triggered when the builds are completed.
-$ oc start-build result-s2i
-$ oc start-build vote-s2i
-$ oc start-build worker-s2i
+# Deploy the openspeedtest image.
+$ oc apply -f openspeedtest-image -n speed-test
 ```
 
-Once the builds are completed, you can check vote and result application are running.
+A few things to mention. as it is built, the image runs a scriot to reconfigure itself based on paramters passed in. This causes permission exceptions when running as a non-root container. For this we redifeint the entry point and use the default already in the built image : 
 
-## Conclusion
+```yaml
+    spec:
+      securityContext:
+        runAsUser: 101                     # <--- User defined in container
+      containers:
+        - name: openspeedtest
+          image:  openspeedtest/latest
+          imagePullPolicy: Always
+          command: ["nginx"]               # <--- Run NGINX as entrypoint
+          args: ["-g","daemon off;"]       # <--- in NON-Daemon mode
+          ports:
+          - containerPort: 3000            # <--- Only expose http port 
+```
 
-We have learned how to deploy applications on Openshift in several ways :
-- With container image already built
-- With Dockerfile from Git repository
-- With Source to Image (S2I)
+These changes allow us to run the Image without having to modify or rebuild it.
 
-There are several ways to migrate applications, and there is not a best way to do that, it depends on how you want to manage your application lifecycle.
-Do you already have tools that build images and store them, and you don't want to migrate everything to Openshift? Then deploy your applications using your container images.
-Do you want to deploy applications from their source code? If you want to take care of a Dockerfile, choose to build your application with it. If not, Source to Image allows you to deploy already secured container images in your cluster.
-There are other solutions you can implement, a combination of Dockerfile and S2I for example, or launching CI/CD pipelines with other tools and so on.
+The route, project and cluster URL will determin the actual URL that gets created, so you must also create the DNS entry for your home system. 
+
+If you follow the instructions, the route will be : 
+
+home-speed-test.apps.cluster.example.com
+
+where:
+
+- 'home' is the entry route.metadata.name ( in openshift-infra/speed-route.yaml )
+
+```yaml
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: home                            # <-- This part 
+  labels:
+    app: speed-test
+```
+
+- 'speed-test' is the name of the project created by `oc new-project speed-test`
+- apps is the openshift defuauklt
+- cluster.example.com is the name of your openshift cluster.
+
+## Future work
+
+### OpenSpeedTest Helm Chart
+
+I wanted to figure out the manual bits, but the OpenSpeedTest projects does have a helmchart to deploy in kubenretes, which probably will help. 
+
+### Using OpenShift builders and image stream
+
+The Openshift-votting-app projects also demonstrates using images stream, build containers and image streams in openshift. While not necessary, this may be a simple enough example to try this out on.
+
+# Thanks to other projects
+
+Thanks to the execelent projects :
+
+[OpenSpeedTest](https://openspeedtest.com/) - github : https://github.com/openspeedtest?tab=repositories 
+
+For the excelent speed test server and documentation
+
+[Openshift-voting-app](https://github.com/end-of-game/openshift-voting-app)
+
+Which provided me more clarity on where OpenShift differs from standard kubernetes. NOTE: I used this on OC 4.15, and DeploymentConfigs are getting depracated for Deployments at some point in the future, this demo will stop working.
+
