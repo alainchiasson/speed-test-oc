@@ -20,11 +20,13 @@ We first create a project to provide us with some sepration.
 
 ```bash
 # Create speed-test project
-$ oc new-project speed-test
+
+oc new-project speed-test
 
 # Allow default serviceaccount from speed-test project to run containers with any non-root user
 # For the example, we will use containers running as user with uid=1001
-$ oc adm policy add-scc-to-user nonroot -z default -n speed-test
+
+oc adm policy add-scc-to-user nonroot -z default -n speed-test
 
 ```
 ### Create the infrastructure
@@ -33,7 +35,8 @@ Initialize speed-test project with the openshift routing and the service endpoin
 
 ```bash
 # Deploying service and route
-$ oc apply -f openshift-infra -n speed-test
+
+oc apply -f openshift-infra -n speed-test
 
 ```
 
@@ -43,7 +46,8 @@ Afterwards we deploy the containers as a deployment, using an already built imag
 
 ```bash
 # Deploy the openspeedtest image.
-$ oc apply -f openspeedtest-image -n speed-test
+
+oc apply -f openspeedtest-image -n speed-test
 ```
 
 A few things to mention. as it is built, the image runs a scriot to reconfigure itself based on paramters passed in. This causes permission exceptions when running as a non-root container. For this we redifeint the entry point and use the default already in the built image : 
